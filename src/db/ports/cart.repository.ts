@@ -1,7 +1,6 @@
 import type { DBError } from '@/db/errors'
 import type { tryCatchAsync } from '@/lib/resultPattern'
 
-// Async repository result inferred from the canonical result wrapper.
 type AsyncResult<T, E> = ReturnType<typeof tryCatchAsync<T, E>>
 
 export type CartLineItem = {
@@ -10,10 +9,8 @@ export type CartLineItem = {
   unitAmount: number
 }
 
-// Cart lifecycle states for billing flow.
 export type CartStatus = 'OPEN' | 'PAID' | 'EXPIRED' | 'CANCELLED'
 
-// Stored cart shape used by repository adapters.
 export type Cart = {
   id: string
   merchantId: string
@@ -21,11 +18,12 @@ export type Cart = {
   status: CartStatus
   lineItems: CartLineItem[]
   subtotalAmount: number
+  dodoPaymentId?: string
+  expiresAtIso?: string
   createdAtIso: string
   updatedAtIso: string
 }
 
-// Contract only: adapters implement these operations.
 export interface CartRepository {
   create(cart: Cart): AsyncResult<Cart, DBError>
   getById(cartId: string): AsyncResult<Cart, DBError>

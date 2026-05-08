@@ -4,3 +4,9 @@ export type DBError = {
   message: string
   cause?: unknown
 }
+
+export const toDBError = (cause: unknown): DBError => ({
+  type: 'DB_ERROR',
+  message: cause instanceof Error ? cause.message : 'Database operation failed',
+  cause,
+})
