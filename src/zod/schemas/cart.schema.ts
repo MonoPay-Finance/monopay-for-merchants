@@ -36,3 +36,22 @@ export const parseCart = (raw: unknown): Result<Cart, CartValidationError> =>
 
 export const parseCartLineItem = (raw: unknown): Result<CartLineItem, CartValidationError> =>
   parseWith(CartLineItemSchema, raw, toCartError)
+
+// Input shape accepted by cart.service.createCart — the service generates
+// id, status, subtotalAmount, expiresAtIso, and timestamps from this.
+export type CartCreateInput = {
+  merchantId: string
+  buyerId?: string
+  lineItems: CartLineItem[]
+}
+
+const CartCreateInputRawSchema = z.object({
+  merchantId: z.string().min(1),
+  buyerId: z.string().min(1).optional(),
+  lineItems: z.array(CartLineItemSchema).min(1),
+})
+
+export const CartCreateInputSchema = CartCreateInputRawSchema.transform(cleanOptional<CartCreateInput>())
+
+export const parseCartCreateInput = (raw: unknown): Result<CartCreateInput, CartValidationError> =>
+  parseWith(CartCreateInputSchema, raw, toCartError)
