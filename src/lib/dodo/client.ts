@@ -2,7 +2,12 @@ import DodoPayments from 'dodopayments'
 import { ResultAsync } from 'neverthrow'
 import { tryCatchAsync } from '@/lib/resultPattern'
 import { env } from '@/lib/env'
-import { toDodoError, type DodoError } from './errors'
+import {
+  toDodoError,
+  toWebhookSignatureError,
+  type DodoError,
+  type WebhookSignatureError,
+} from './errors'
 
 const client = new DodoPayments({
   bearerToken: env.DODO_PAYMENTS_API_KEY,
@@ -82,3 +87,18 @@ export const getPayment = (paymentId: string): ResultAsync<Payment, DodoError> =
       metadata: p.metadata,
     }
   }, toDodoError)
+
+// Verifies the webhook signature using Dodo SDK's unwrap helper.
+// Returns the typed webhook event on success, or WebhookSignatureError on
+// signature failure. This MUST be called before parsing the body — the raw
+// body is what the signature was computed over.
+export type DodoWebhookEvent = ReturnType<typeof client.webhooks.unwrap>
+
+export const verifyWebhook = (
+  rawBody: string,
+  headers: Record<string, string>
+): ResultAsync<DodoWebhookEvent, WebhookSignatureError> =>
+  tryCatchAsync(
+    async () => client.webhooks.unwrap(rawBody, { headers, key: env.DODO_PAYMENTS_WEBHOOK_KEY }),
+    toWebhookSignatureError
+  )
