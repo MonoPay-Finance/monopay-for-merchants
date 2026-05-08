@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { Result } from 'neverthrow'
-import { parseWith, makeValidationError, ValidationError } from '@/lib/validation'
+import { parseWith, makeValidationError, ValidationError } from '@/lib/zodPattern'
 
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),

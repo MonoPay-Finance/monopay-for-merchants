@@ -1,5 +1,5 @@
 import type { DBError } from '@/db/errors'
-import type { tryCatchAsync } from '@/lib/result'
+import type { tryCatchAsync } from '@/lib/resultPattern'
 
 // Async repository result inferred from the canonical result wrapper.
 type AsyncResult<T, E> = ReturnType<typeof tryCatchAsync<T, E>>
