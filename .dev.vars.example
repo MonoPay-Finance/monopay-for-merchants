@@ -1,0 +1,26 @@
+# Load .env.development* files when running `wrangler dev`
+NEXTJS_ENV=development
+
+# App URL
+APP_URL=http://localhost:3000
+
+# Dodo Payments API Key
+DODO_PAYMENTS_API_KEY=your-dodo-api-key
+
+# Dodo Payments Webhook Key
+DODO_PAYMENTS_WEBHOOK_KEY=your-dodo-webhook-key
+
+# Return URL after checkout is completed
+DODO_PAYMENTS_RETURN_URL=http://localhost:3000
+# https://play.svix.com/in/e_7XXzj8JVIogFlCIhlYcU47ZHpNB/
+
+# Set to "test_mode" for testing or "live_mode" for production
+DODO_PAYMENTS_ENVIRONMENT=test_mode
+
+# Expo access token (optional until push flow is wired)
+EXPO_ACCESS_TOKEN=
+
+# Firebase REST adapter values (optional until DB adapter is wired)
+FIREBASE_PROJECT_ID=
+FIREBASE_CLIENT_EMAIL=
+FIREBASE_PRIVATE_KEY=

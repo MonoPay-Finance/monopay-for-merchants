@@ -1,0 +1,10 @@
+Basics of Next js framework.
+
+1. `src/app/page.tsx` is the entry point, mapping to `/`
+2. API routes go in `src/app/api/*/route.ts` (singular, inside `app/`)
+3. Non-route code (`lib/`, `components/`, `hooks/`, `types/`, `store/`) lives outside `app/` under `src/`
+4. Flat folders under `src/` is the Next.js convention; `packages/` is a Turborepo/monorepo pattern
+5. Shared components go in `src/components/`; route-specific ones in `src/app/_components/`
+6. `@/` path alias maps to `src/` via `tsconfig.json`
+7. `_` prefix inside `app/` opts a folder out of the routing system
+8. Reserved filenames: `page.tsx`, `layout.tsx`, `loading.tsx`, `error.tsx`, `not-found.tsx`, `route.ts`, `middleware.ts`
