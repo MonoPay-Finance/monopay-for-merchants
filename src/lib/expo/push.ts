@@ -1,6 +1,8 @@
 import { ResultAsync } from 'neverthrow'
+import { z } from 'zod'
 import { tryCatchAsync } from '@/lib/resultPattern'
 import { env } from '@/lib/env'
+import { makeValidationError, parseWith } from '@/lib/zodPattern'
 import { toExpoError, type ExpoError } from './errors'
 
 export type ExpoPushPayload = {
@@ -8,6 +10,26 @@ export type ExpoPushPayload = {
   title: string
   body: string
   data?: Record<string, string>       // arbitrary key/value sent with the notification
+}
+
+const ExpoWorkerResponseValidationError = makeValidationError('EXPO_WORKER_RESPONSE_VALIDATION_ERROR')
+
+const PushWorkerResponseSchema = z.object({
+  ok: z.literal(true),
+})
+
+function parsePushWorkerResponse(raw: unknown): { ok: true } {
+  const parsed = parseWith(
+    PushWorkerResponseSchema,
+    raw,
+    ExpoWorkerResponseValidationError
+  )
+  if (parsed.isOk()) return parsed.value
+
+  const fields = parsed.error.fields
+    .map(field => `${field.path || '<root>'}: ${field.message}`)
+    .join('; ')
+  throw new Error(`Push worker response validation failed: ${fields}`)
 }
 
 // Sends a push notification by calling the Cloudflare Worker that fronts
@@ -34,5 +56,5 @@ export const sendPush = (payload: ExpoPushPayload): ResultAsync<{ ok: true }, Ex
       throw new Error(`Push worker returned ${res.status}: ${await res.text()}`)
     }
 
-    return { ok: true as const }
+    return parsePushWorkerResponse(await res.json())
   }, toExpoError)

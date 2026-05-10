@@ -1,7 +1,9 @@
 import DodoPayments from 'dodopayments'
 import { ResultAsync } from 'neverthrow'
+import { z } from 'zod'
 import { tryCatchAsync } from '@/lib/resultPattern'
 import { env } from '@/lib/env'
+import { makeValidationError, parseWith } from '@/lib/zodPattern'
 import {
   toDodoError,
   toWebhookSignatureError,
@@ -13,6 +15,8 @@ const client = new DodoPayments({
   bearerToken: env.DODO_PAYMENTS_API_KEY,
   environment: env.DODO_PAYMENTS_ENVIRONMENT,
 })
+
+const DodoResponseValidationError = makeValidationError('DODO_RESPONSE_VALIDATION_ERROR')
 
 // ---- types we expose to services (SDK fields renamed to camelCase) ----
 
@@ -44,6 +48,31 @@ export type Payment = {
   metadata: Record<string, string>
 }
 
+const CheckoutSessionSchema: z.ZodType<CheckoutSession> = z.object({
+  sessionId: z.string().min(1),
+  checkoutUrl: z.string().min(1).nullable(),
+})
+
+const PaymentSchema: z.ZodType<Payment> = z.object({
+  paymentId: z.string().min(1),
+  businessId: z.string().min(1),
+  status: z.string().min(1).nullable(),
+  totalAmount: z.number().int().nonnegative(),
+  currency: z.string().min(1),
+  customerId: z.string().min(1),
+  metadata: z.record(z.string(), z.string()),
+})
+
+function parseDodoResponse<T>(schema: z.ZodSchema<T>, raw: unknown, label: string): T {
+  const parsed = parseWith(schema, raw, DodoResponseValidationError)
+  if (parsed.isOk()) return parsed.value
+
+  const fields = parsed.error.fields
+    .map(field => `${field.path || '<root>'}: ${field.message}`)
+    .join('; ')
+  throw new Error(`${label} response validation failed: ${fields}`)
+}
+
 // ---- operations ----
 
 export const createCheckoutSession = (
@@ -68,24 +97,24 @@ export const createCheckoutSession = (
       ...(input.metadata !== undefined && { metadata: input.metadata }),
     })
 
-    return {
+    return parseDodoResponse(CheckoutSessionSchema, {
       sessionId: session.session_id,
       checkoutUrl: session.checkout_url ?? null,
-    }
+    }, 'Dodo checkout session')
   }, toDodoError)
 
 export const getPayment = (paymentId: string): ResultAsync<Payment, DodoError> =>
   tryCatchAsync(async () => {
     const p = await client.payments.retrieve(paymentId)
-    return {
+    return parseDodoResponse(PaymentSchema, {
       paymentId: p.payment_id,
       businessId: p.business_id,
       status: p.status ?? null,
       totalAmount: p.total_amount,
       currency: p.currency,
       customerId: p.customer.customer_id,
-      metadata: p.metadata,
-    }
+      metadata: p.metadata ?? {},
+    }, 'Dodo payment')
   }, toDodoError)
 
 // Verifies the webhook signature using Dodo SDK's unwrap helper.

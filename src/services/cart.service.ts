@@ -2,8 +2,7 @@ import { errAsync, ResultAsync } from 'neverthrow'
 import type { Cart, CartRepository } from '@/db/ports/cart.repository'
 import type { DBError } from '@/db/errors'
 import { parseCartCreateInput, type CartValidationError } from '@/zod/schemas/cart.schema'
-
-const CART_TTL_MS = 15 * 60 * 1000 // QR/payment link expires after 15 minutes
+import { getCartPaymentExpiryIso } from '@/lib/cartLifecycle'
 
 export type CartServiceDeps = { carts: CartRepository }
 
@@ -25,7 +24,7 @@ export const makeCartService = (deps: CartServiceDeps) => ({
       status: 'OPEN',
       lineItems: parsed.value.lineItems,
       subtotalAmount,
-      expiresAtIso: new Date(now.getTime() + CART_TTL_MS).toISOString(),
+      expiresAtIso: getCartPaymentExpiryIso(now),
       createdAtIso: now.toISOString(),
       updatedAtIso: now.toISOString(),
     }

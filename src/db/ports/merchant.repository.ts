@@ -19,5 +19,6 @@ export type Merchant = {
 export interface MerchantRepository {
   getById(id: string): AsyncResult<Merchant, DBError>
   getByWallet(walletAddress: string): AsyncResult<Merchant, DBError>
+  // Creates or replaces the merchant record identified by merchant.id.
   upsert(merchant: Merchant): AsyncResult<Merchant, DBError>
 }

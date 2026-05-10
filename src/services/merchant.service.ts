@@ -12,6 +12,8 @@ export const makeMerchantService = (deps: MerchantServiceDeps) => ({
   getMerchantByWallet: (walletAddress: string): ResultAsync<Merchant, DBError> =>
     deps.merchants.getByWallet(walletAddress),
 
+  // Upsert means "validate the complete merchant payload, then create or replace
+  // the record keyed by merchant.id" through the repository.
   upsertMerchant: (rawInput: unknown): ResultAsync<Merchant, MerchantValidationError | DBError> => {
     const parsed = parseMerchant(rawInput)
     if (parsed.isErr()) return errAsync(parsed.error)

@@ -295,6 +295,35 @@ account and is deferred to Stage 7 (E2E).
 
 ---
 
+## Post-review refactor pass
+
+After `llms/STAGE_1_TO_5_COMMENTS.md` was added, the practical Stage 1-5
+comments were addressed without forcing Zod into internal-only contracts.
+
+Changes made:
+- `src/db/adapters/firebase/client.ts` now validates OAuth token, Firestore
+  document, and Firestore query response shapes with Zod before mapping them
+  into app types.
+- `src/lib/dodo/client.ts` now validates the normalized checkout session and
+  payment shapes returned by the Dodo SDK.
+- `src/lib/expo/push.ts` now validates the push worker response shape.
+- `src/lib/cartLifecycle.ts` owns the cart payment TTL and expiry timestamp
+  calculation; `cart.service.ts` no longer hardcodes that logic inline.
+- `merchant.repository.ts` and `merchant.service.ts` now document that
+  merchant upsert means "validate complete payload, then create or replace
+  the record keyed by `merchant.id`."
+- `llms/STAGE_1_TO_5_COMMENTS.md` was corrected to use the real webhook
+  path and to distinguish external response validation from typed internal
+  contracts like ports and error maps.
+
+Verified after the pass:
+- `./node_modules/.bin/tsc --noEmit` passes.
+- `./node_modules/.bin/eslint .` passes with only two existing warnings in
+  generated `cloudflare-env.d.ts`.
+- `git diff --check` passes.
+
+---
+
 ## Files / decisions worth a closer look
 
 For a fast review, focus on these in order:

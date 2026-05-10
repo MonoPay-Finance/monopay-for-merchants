@@ -1,4 +1,6 @@
 import { env } from '@/lib/env'
+import { z } from 'zod'
+import { makeValidationError, parseWith } from '@/lib/zodPattern'
 
 // ---- Firestore value types ----
 
@@ -7,8 +9,8 @@ type FsValue =
   | { integerValue: string }
   | { booleanValue: boolean }
   | { nullValue: 'NULL_VALUE' }
-  | { arrayValue: { values?: FsValue[] } }
-  | { mapValue: { fields?: Record<string, FsValue> } }
+  | { arrayValue: { values?: FsValue[] | undefined } }
+  | { mapValue: { fields?: Record<string, FsValue> | undefined } }
 
 type FsDocument = {
   name: string
@@ -17,9 +19,46 @@ type FsDocument = {
   updateTime: string
 }
 
-type QueryRow = { document?: FsDocument; readTime: string }
+type QueryRow = { document?: FsDocument | undefined; readTime: string }
 
 export type WhereClause = { field: string; value: string }
+
+const FirebaseResponseValidationError = makeValidationError('FIREBASE_RESPONSE_VALIDATION_ERROR')
+
+const FsValueSchema: z.ZodType<FsValue> = z.lazy(() =>
+  z.union([
+    z.object({ stringValue: z.string() }),
+    z.object({ integerValue: z.string() }),
+    z.object({ booleanValue: z.boolean() }),
+    z.object({ nullValue: z.literal('NULL_VALUE') }),
+    z.object({ arrayValue: z.object({ values: z.array(FsValueSchema).optional() }) }),
+    z.object({ mapValue: z.object({ fields: z.record(z.string(), FsValueSchema).optional() }) }),
+  ])
+)
+
+const FsDocumentSchema: z.ZodType<FsDocument> = z.object({
+  name: z.string(),
+  fields: z.record(z.string(), FsValueSchema),
+  createTime: z.string(),
+  updateTime: z.string(),
+})
+
+const QueryRowsSchema: z.ZodType<QueryRow[]> = z.array(z.object({
+  document: FsDocumentSchema.optional(),
+  readTime: z.string(),
+}))
+
+const OAuthTokenSchema = z.object({ access_token: z.string().min(1) })
+
+function parseFirebaseResponse<T>(schema: z.ZodSchema<T>, raw: unknown, label: string): T {
+  const parsed = parseWith(schema, raw, FirebaseResponseValidationError)
+  if (parsed.isOk()) return parsed.value
+
+  const fields = parsed.error.fields
+    .map(field => `${field.path || '<root>'}: ${field.message}`)
+    .join('; ')
+  throw new Error(`${label} response validation failed: ${fields}`)
+}
 
 // ---- Config ----
 
@@ -71,7 +110,7 @@ async function getAccessToken(): Promise<string> {
 
   if (!res.ok) throw new Error(`Token exchange failed (${res.status}): ${await res.text()}`)
 
-  const data = await res.json() as { access_token: string }
+  const data = parseFirebaseResponse(OAuthTokenSchema, await res.json(), 'OAuth token')
   tokenCache = { value: data.access_token, expiresAt: exp }
   return data.access_token
 }
@@ -168,7 +207,7 @@ function fromDoc<T>(doc: FsDocument): T {
 
 // ---- HTTP ----
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+async function request(method: string, path: string, body?: unknown): Promise<unknown> {
   const { projectId } = getConfig()
   const token = await getAccessToken()
   const base = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`
@@ -180,21 +219,29 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   })
 
   if (!res.ok) throw new Error(`Firestore ${method} ${path}: ${res.status} ${await res.text()}`)
-  return res.json() as Promise<T>
+  return res.json()
 }
 
 // ---- Public API ----
 
 export async function fsGet<T>(collection: string, id: string): Promise<T> {
-  const doc = await request<FsDocument>('GET', `/${collection}/${encodeURIComponent(id)}`)
+  const doc = parseFirebaseResponse(
+    FsDocumentSchema,
+    await request('GET', `/${collection}/${encodeURIComponent(id)}`),
+    'Firestore document'
+  )
   return fromDoc<T>(doc)
 }
 
 export async function fsCreate<T>(collection: string, id: string, data: object): Promise<T> {
-  const doc = await request<FsDocument>(
-    'POST',
-    `/${collection}?documentId=${encodeURIComponent(id)}`,
-    { fields: toFields(data) }
+  const doc = parseFirebaseResponse(
+    FsDocumentSchema,
+    await request(
+      'POST',
+      `/${collection}?documentId=${encodeURIComponent(id)}`,
+      { fields: toFields(data) }
+    ),
+    'Firestore create'
   )
   return fromDoc<T>(doc)
 }
@@ -209,7 +256,11 @@ export async function fsPatch<T>(
     ?.map(f => `updateMask.fieldPaths=${encodeURIComponent(f)}`)
     .join('&')
   const path = `/${collection}/${encodeURIComponent(id)}${mask ? `?${mask}` : ''}`
-  const doc = await request<FsDocument>('PATCH', path, { fields: toFields(data) })
+  const doc = parseFirebaseResponse(
+    FsDocumentSchema,
+    await request('PATCH', path, { fields: toFields(data) }),
+    'Firestore patch'
+  )
   return fromDoc<T>(doc)
 }
 
@@ -232,12 +283,16 @@ export async function fsQuery<T>(collection: string, where: WhereClause[]): Prom
       ? fieldFilter(first)
       : { compositeFilter: { op: 'AND', filters: [fieldFilter(first), ...rest.map(fieldFilter)] } }
 
-  const rows = await request<QueryRow[]>('POST', ':runQuery', {
-    structuredQuery: {
-      from: [{ collectionId: collection }],
-      where: filter,
-    },
-  })
+  const rows = parseFirebaseResponse(
+    QueryRowsSchema,
+    await request('POST', ':runQuery', {
+      structuredQuery: {
+        from: [{ collectionId: collection }],
+        where: filter,
+      },
+    }),
+    'Firestore query'
+  )
 
   return rows.flatMap(r => (r.document ? [fromDoc<T>(r.document)] : []))
 }
