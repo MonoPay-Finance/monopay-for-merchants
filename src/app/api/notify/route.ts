@@ -1,25 +1,28 @@
-// app/api/send-notification/route.ts
+import { tryCatchAsync } from '@/lib/resultPattern'
+import { parseNotification } from '@/zod/schemas/notification.schema'
+import { sendPush } from '@/lib/expo/push'
+import { errorResponse } from '@/lib/http/errorMap'
 
-export async function POST(request: Request) {
-  const { token, title, body, data } = await request.json() as {
-		token: string;
-		title: string;
-		body: string;
-		data: Record<string, string>;
-    };
+export async function POST(req: Request): Promise<Response> {
+  const body = await tryCatchAsync(
+    () => req.json() as Promise<unknown>,
+    () => ({
+      type: 'NOTIFICATION_VALIDATION_ERROR' as const,
+      fields: [{ path: '_body', message: 'Invalid JSON' }],
+    })
+  )
+  if (body.isErr()) return errorResponse(body.error)
 
-    const WORKER_URL = process.env.WORKER_URL!;
-    const WORKER_SECRET = process.env.WORKER_SECRET? process.env.WORKER_SECRET : '1234';
-  const response = await fetch(WORKER_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Secret": WORKER_SECRET,
-    },
-    body: JSON.stringify({ token, title, body, data }),
-  });
+  const parsed = parseNotification(body.value)
+  if (parsed.isErr()) return errorResponse(parsed.error)
 
-  const result = await response.json();
+  const sent = await sendPush({
+    token: parsed.value.token,
+    title: parsed.value.title,
+    body: parsed.value.body,
+    ...(parsed.value.data !== undefined && { data: parsed.value.data }),
+  })
+  if (sent.isErr()) return errorResponse(sent.error)
 
-  return Response.json(result);
+  return Response.json({ ok: true }, { status: 200 })
 }

@@ -15,6 +15,7 @@
 	"dependencies": {
 		"@dodopayments/nextjs": "^0.3.6",
 		"@opennextjs/cloudflare": "^1.19.1",
+		"dodopayments": "^2.31.0",
 		"dodopayments-checkout": "^1.8.0",
 		"neverthrow": "^8.2.0",
 		"next": "16.2.3",

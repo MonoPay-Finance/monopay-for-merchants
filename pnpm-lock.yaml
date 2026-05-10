@@ -14,6 +14,9 @@ importers:
       '@opennextjs/cloudflare':
         specifier: ^1.19.1
         version: 1.19.5(next@16.2.3(react-dom@19.1.5(react@19.1.5))(react@19.1.5))(wrangler@4.87.0)
+      dodopayments:
+        specifier: ^2.31.0
+        version: 2.31.0
       dodopayments-checkout:
         specifier: ^1.8.0
         version: 1.8.0
